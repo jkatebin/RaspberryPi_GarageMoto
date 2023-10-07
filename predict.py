@@ -10,8 +10,8 @@ import numpy as np
 from PIL import Image
 from object_detection import ObjectDetection
 
-MODEL_FILENAME = 'model.tflite'
-LABELS_FILENAME = 'labels.txt'
+MODEL_FILENAME = '/usr/local/bin/model.tflite'
+LABELS_FILENAME = '/usr/local/bin/labels.txt'
 
 
 class TFLiteObjectDetection(ObjectDetection):
