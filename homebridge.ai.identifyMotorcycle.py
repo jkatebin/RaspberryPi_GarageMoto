@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
 
-import os, json, time, subprocess
+import os, json, time, subprocess, requests
 from time import sleep
 from predict import analyzeImage
-from aladdin_connect import AladdinConnectClient
+
 
 numExecutions_MAX = 3
 rootDir = "/home/jkatebin/motion_detected/"
-probabilityThreshold = 0.90
-garage_email = ""
-garage_password = ""
+probabilityThreshold = 0.85
 
+homebridgeUrl = 'https://192.168.50.102'
+homebridgeAuthHeaders = ''
+garage_door_accessory_name = 'Chamberlain 2'
+garage_door_accessory_uniqueId = ''
 
-
-
-def loadAladdinConnectCredentials():
-   "Loads AC credentials for the garage door from the HomeBridge configuration file so creds are in one place"
-   homebridgeCfg = json.load(open("/var/lib/homebridge/config.json"))
-
-   for i, curPlatform in enumerate(homebridgeCfg["platforms"]):
-       if curPlatform["name"] == "Garage Door":
-           globals()["garage_email"] = curPlatform["username"]
-           globals()["garage_password"] = curPlatform["password"]
-
-   return
 
 
 
@@ -86,28 +76,62 @@ def lookForMoto(pathToImage, deleteAfterReview):
 
 
 
+
+
+
+    
+
+
+def genHomebridgeToken():
+    "Generate OAuth2 token to make API calls against the Homebridge"    
+    global homebridgeAuthHeaders
+    
+    cfg = json.load(open("/usr/local/bin/homebridge.json"))["homebridge"]
+
+    creds = { 'username': cfg['username'], 'password': cfg['password'] }
+
+    auth = requests.post(homebridgeUrl + '/api/auth/login', json = creds, verify=False).json()
+    homebridgeAuthHeaders = {"Authorization": "Bearer " + auth['access_token'] }
+    
+    return
+
+
+def getGarageDoorAccessoryId():
+    global homebridgeAuthHeaders
+    global garage_door_accessory_uniqueId
+    
+    genHomebridgeToken()
+    
+    accessories = requests.get(homebridgeUrl + '/api/accessories', headers=homebridgeAuthHeaders, verify=False).json()
+    
+    # Search for the 'Chamberlain 2' accessory and get it's unique ID property
+    for item in accessories:
+        if item['serviceName'] == garage_door_accessory_name:
+            garage_door_accessory_uniqueId = item['uniqueId']       
+
+
+
+
+
 def openGarageDoor():
     "Open the garage door"
-    # Decided to work with doors directly from python rather than back and forth via homebridge
-    # Leaving homebridge connection in place however so I can still have the garage doors work with Apple
-    # Library - https://github.com/shoejosh/aladdin-connect/tree/master
-    # Run setup.py install to make avail to python
+    global homebridgeAuthHeaders
+    global garage_door_accessory_uniqueId
 
-    # Create session using aladdin connect credentials
-    global garage_email
-    global garage_password
-    client = AladdinConnectClient(garage_email, garage_password)
-    client.login()
+    getGarageDoorAccessoryId()
 
-    # Get list of available doors
-    for i, curDoor in enumerate(client.get_doors()):
-        if curDoor["name"].lower().startswith("chamber"):
-            if curDoor["status"] == "closed":
-                print("Opening Garage Door")
-                client.open_door(curDoor['device_id'], curDoor['door_number'])
-            else:
-                print("Garage door is already open!")
-            return
+    if garage_door_accessory_uniqueId == '':
+        print('Error - Cannot find garage door accessory named: ' + garage_door_accessory_name)
+        return
+    
+
+    open_request = {
+        "characteristicType": "TargetDoorState",
+        "value": "0"
+        }
+    
+    print("Opening Garage Door")
+    open_result = requests.put(homebridgeUrl + '/api/accessories/' + garage_door_accessory_uniqueId, json=open_request, headers=homebridgeAuthHeaders, verify=False)
 
     return
 
@@ -116,10 +140,11 @@ def openGarageDoor():
 
 
 
+
+
+
 # Main logic
 #camera = setupCamera()
-
-loadAladdinConnectCredentials()
 
 for curRunCount in range(numExecutions_MAX):
     # Take a picture and eval if my moto is in it.
