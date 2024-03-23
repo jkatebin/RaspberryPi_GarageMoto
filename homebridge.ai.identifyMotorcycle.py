@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, json, time, subprocess, requests
+import os, json, time, subprocess, requests, urllib3
 from time import sleep
 from predict import analyzeImage
 
@@ -86,7 +86,7 @@ def genHomebridgeToken():
     "Generate OAuth2 token to make API calls against the Homebridge"    
     global homebridgeAuthHeaders
     
-    cfg = json.load(open("/usr/local/bin/homebridge.json"))["homebridge"]
+    cfg = json.load(open("/usr/local/bin/homebridge.ai.identifyMotorcycle.json"))["homebridge"]
 
     creds = { 'username': cfg['username'], 'password': cfg['password'] }
 
@@ -145,6 +145,9 @@ def openGarageDoor():
 
 # Main logic
 #camera = setupCamera()
+
+# I know homebridge isn't a trusted ssl cert and I don't want a bunch of warnings about it...
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 for curRunCount in range(numExecutions_MAX):
     # Take a picture and eval if my moto is in it.
